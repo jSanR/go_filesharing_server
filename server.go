@@ -18,7 +18,9 @@ const SEND_FILES_CONCURRENTLY = false //Determina si un archivo recibido se env√
 func main() {
 	//Verificar argumentos (start PORT)
 	if len(os.Args) != 2 || os.Args[1] != "start" {
-		fmt.Println("Usage: server start")
+		fmt.Println("File sharing server: Allow clients to send and receive files through channel subscriptions\n")
+		fmt.Println("Usage:")
+		fmt.Println("server start")
 		os.Exit(0)
 	}
 
