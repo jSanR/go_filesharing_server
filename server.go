@@ -18,7 +18,7 @@ const SEND_FILES_CONCURRENTLY = false //Determina si un archivo recibido se env√
 func main() {
 	//Verificar argumentos (start PORT)
 	if len(os.Args) != 2 || os.Args[1] != "start" {
-		fmt.Println("Usage: server start\nExample: server start")
+		fmt.Println("Usage: server start")
 		os.Exit(0)
 	}
 
