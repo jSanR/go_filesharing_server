@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 )
 
@@ -35,7 +36,9 @@ func handleConnection(connection net.Conn, subsMatrix *subscriptionsMatrix) {
 	case 1:
 		fmt.Println("Command received: send")
 		exitStatus = processFileSharing(connection, subsMatrix)
+	//Comando inválido
 	default:
+		fmt.Println("Received invalid command. Closing connection...")
 		connection.Write([]byte("invalid command"))
 		connection.Close()
 		exitStatus = 0
@@ -71,7 +74,7 @@ func processSubscription(connection net.Conn, subsMatrix *subscriptionsMatrix) i
 	//Comprobar que el canal recibido sea válido
 	if channel < 1 || channel > NUMBER_OF_CHANNELS {
 		fmt.Println("ERROR: The client's message specified an invalid channel")
-		connection.Write([]byte("invalid channel"))
+		connection.Write([]byte("invalid channel (allowed channels: 1-" + strconv.Itoa(NUMBER_OF_CHANNELS) + ")"))
 		return 2
 	}
 	//Parsear la longitud del contenido
@@ -108,10 +111,10 @@ func processSubscription(connection net.Conn, subsMatrix *subscriptionsMatrix) i
 }
 
 func processFileSharing(connection net.Conn, subsMatrix *subscriptionsMatrix) int {
-	var channelBuffer []byte = make([]byte, 1) //Buffer que recibe el canal por el que se enviará el archivo
-	var lengthBuffer []byte = make([]byte, 8)  //Buffer que recibe la longitud del contenido (nombre y contenido de archivo)
-	var filenameBuffer []byte = make([]byte, FILENAME_MAX_LENGTH)
-	var fileBuffer []byte
+	var channelBuffer []byte = make([]byte, 1)                    //Buffer que recibe el canal por el que se enviará el archivo
+	var lengthBuffer []byte = make([]byte, 8)                     //Buffer que recibe la longitud del contenido (nombre y contenido de archivo)
+	var filenameBuffer []byte = make([]byte, FILENAME_MAX_LENGTH) //Buffer que recibe el nombre del archivo
+	var fileBuffer []byte                                         //Buffer que recibe el contenido del archivo
 	//Cerrar la conexión al terminar
 	defer connection.Close()
 	//Leer el canal seleccionado por el cliente
@@ -180,6 +183,7 @@ func processFileSharing(connection net.Conn, subsMatrix *subscriptionsMatrix) in
 	}
 	//El archivo se ha leído y se tiene en un buffer
 	fmt.Printf("File received from client (%v, %d bytes)\n", filename, contentLength-FILENAME_MAX_LENGTH)
+	//Comunicar que se recibió el archivo al cliente que lo envió
 	connection.Write([]byte("received"))
 	//El archivo se enviará a los clientes suscritos al canal. Primero se armará el mensaje (longitud, filename, file)
 	var message []byte
@@ -230,6 +234,7 @@ func sendFileToClient(message []byte, clientAddress string) {
 		fmt.Println("ERROR: Error while receiving client's response: " + responseError.Error())
 		return
 	}
+	//Parsear respuesta
 	response = string(responseBuffer[:n])
 	//Interpretar respuesta
 	switch response {

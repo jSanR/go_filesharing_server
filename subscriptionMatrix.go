@@ -1,9 +1,9 @@
 package main
 
-import "sync"
-
 //Archivo que contiene la definición de una estructura con una matriz que contendrá las direcciones de los clientes
 //suscritos por canal y con una variable mutex para cada matriz para evitar condiciones de carrera
+
+import "sync"
 
 type subscriptionsMatrix struct {
 	arrMutex [NUMBER_OF_CHANNELS]sync.Mutex
@@ -27,6 +27,7 @@ func (m *subscriptionsMatrix) readChannel(channel int8) []string {
 	//Crear una copia del slice correspondiente
 	var channelSubsCopy []string = make([]string, len(m.matrix[channel-1]))
 	copy(channelSubsCopy, m.matrix[channel-1])
+	//Unlock mutex
 	defer m.arrMutex[channel-1].Unlock()
 	return channelSubsCopy
 }
