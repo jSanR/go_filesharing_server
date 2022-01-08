@@ -10,7 +10,15 @@ import (
 	"strings"
 )
 
+//Función que maneja la recepción de comandos de los clientes, llamando las funciones correspondientes
 func handleConnection(connection net.Conn, subsMatrix *subscriptionsMatrix) {
+	/*
+		Comandos existentes:
+		0: subscribe (solicitud de suscripción)
+		1: send (solicitud de envío de archivo)
+		2: notify-success (notificar recepción/procesamiento exitoso de mensaje, no válido en este contexto)
+		3: notify-failure (notificar error durante recepción/procesamiento de mensaje, no válido en este contexto)
+	*/
 	var exitStatus int = -1                    //Código que indica el resultado de procesar la conexión actual
 	var commandBuffer []byte = make([]byte, 1) //Buffer que recibe el comando inicial
 	//Leer el comando recibido (la idea es que sea uno de los permitidos en el protocolo)
@@ -18,6 +26,10 @@ func handleConnection(connection net.Conn, subsMatrix *subscriptionsMatrix) {
 	//Error check
 	if messageError != nil {
 		fmt.Println("ERROR: Error while reading client's command: " + messageError.Error())
+		_, err := connection.Write(createMessage(3, 0, []byte("command read error")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to client: " + err.Error())
+		}
 		exitStatus = 2
 		fmt.Printf("Handled connection (status: %d)\n", exitStatus)
 		return
@@ -39,13 +51,17 @@ func handleConnection(connection net.Conn, subsMatrix *subscriptionsMatrix) {
 	//Comando inválido
 	default:
 		fmt.Println("Received invalid command. Closing connection...")
-		connection.Write([]byte("invalid command"))
+		_, err := connection.Write(createMessage(3, 0, []byte("invalid command")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to client: " + err.Error())
+		}
 		connection.Close()
 		exitStatus = 0
 	}
 	fmt.Printf("Handled connection (status: %d)\n", exitStatus)
 }
 
+//Función para procesar una solicitud de suscripción de un cliente a un canal
 func processSubscription(connection net.Conn, subsMatrix *subscriptionsMatrix) int {
 	var channelBuffer []byte = make([]byte, 1) //Buffer que recibe el canal de la suscripción
 	var lengthBuffer []byte = make([]byte, 8)  //Buffer que recibe la longitud del contenido (en este caso la dirección del cliente)
@@ -57,7 +73,10 @@ func processSubscription(connection net.Conn, subsMatrix *subscriptionsMatrix) i
 	//Error check
 	if channelError != nil {
 		fmt.Println("ERROR: Error while reading client's selected channel: " + channelError.Error())
-		connection.Write([]byte("channel read error"))
+		_, err := connection.Write(createMessage(3, 0, []byte("channel read error")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to client: " + err.Error())
+		}
 		return 2
 	}
 	//Leer la longitud del contenido en el mensaje
@@ -65,7 +84,10 @@ func processSubscription(connection net.Conn, subsMatrix *subscriptionsMatrix) i
 	//Error check
 	if lengthError != nil {
 		fmt.Println("ERROR: Error while reading message's content length: " + lengthError.Error())
-		connection.Write([]byte("length read error"))
+		_, err := connection.Write(createMessage(3, 0, []byte("length read error")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to client: " + err.Error())
+		}
 		return 2
 	}
 	//Parsear el canal recibido
@@ -74,7 +96,10 @@ func processSubscription(connection net.Conn, subsMatrix *subscriptionsMatrix) i
 	//Comprobar que el canal recibido sea válido
 	if channel < 1 || channel > NUMBER_OF_CHANNELS {
 		fmt.Println("ERROR: The client's message specified an invalid channel")
-		connection.Write([]byte("invalid channel (allowed channels: 1-" + strconv.Itoa(NUMBER_OF_CHANNELS) + ")"))
+		_, err := connection.Write(createMessage(3, 0, []byte("invalid channel (allowed channels: 1-"+strconv.Itoa(NUMBER_OF_CHANNELS)+")")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to client: " + err.Error())
+		}
 		return 2
 	}
 	//Parsear la longitud del contenido
@@ -83,7 +108,10 @@ func processSubscription(connection net.Conn, subsMatrix *subscriptionsMatrix) i
 	//Comprobar que la longitud sea válida
 	if contentLength <= 0 {
 		fmt.Println("ERROR: The client's message specified an invalid content length")
-		connection.Write([]byte("invalid content length"))
+		_, err := connection.Write(createMessage(3, 0, []byte("invalid content length")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to client: " + err.Error())
+		}
 		return 3
 	}
 	//Leer el contenido del mensaje (dirección del cliente: IP + PORT)
@@ -92,12 +120,18 @@ func processSubscription(connection net.Conn, subsMatrix *subscriptionsMatrix) i
 	//Error check
 	if contentError != nil {
 		fmt.Println("ERROR: Error while reading message's content: " + contentError.Error())
-		connection.Write([]byte("content read error"))
+		_, err := connection.Write(createMessage(3, 0, []byte("content read error")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to client: " + err.Error())
+		}
 		return 2
 	}
 	if int64(n) != contentLength {
 		fmt.Printf("ERROR: Could not read content completely (expected: %d, real: %d)\n", contentLength, n)
-		connection.Write([]byte("content incomplete read"))
+		_, err := connection.Write(createMessage(3, 0, []byte("content incomplete read")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to client: " + err.Error())
+		}
 		return 2
 	}
 	//Parsear el contenido
@@ -106,10 +140,15 @@ func processSubscription(connection net.Conn, subsMatrix *subscriptionsMatrix) i
 	subsMatrix.append(clientAddress, channel)
 	fmt.Printf("New client subscribed to channel %d (%v)\n", channel, clientAddress)
 	//Retornar un mensaje al cliente
-	connection.Write([]byte("success"))
+	_, err := connection.Write(createMessage(2, channel, []byte("subscribed")))
+	if err != nil {
+		fmt.Println("ERROR: Error while sending response to client: " + err.Error())
+		return 2
+	}
 	return 0
 }
 
+//Función para procesar una solicitud de envío de archivo de un cliente a un canal
 func processFileSharing(connection net.Conn, subsMatrix *subscriptionsMatrix) int {
 	var channelBuffer []byte = make([]byte, 1)                    //Buffer que recibe el canal por el que se enviará el archivo
 	var lengthBuffer []byte = make([]byte, 8)                     //Buffer que recibe la longitud del contenido (nombre y contenido de archivo)
@@ -122,7 +161,10 @@ func processFileSharing(connection net.Conn, subsMatrix *subscriptionsMatrix) in
 	//Error check
 	if channelError != nil {
 		fmt.Println("ERROR: Error while reading client's selected channel: " + channelError.Error())
-		connection.Write([]byte("channel read error"))
+		_, err := connection.Write(createMessage(3, 0, []byte("channel read error")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to client: " + err.Error())
+		}
 		return 2
 	}
 	//Leer la longitud del contenido en el mensaje
@@ -130,7 +172,10 @@ func processFileSharing(connection net.Conn, subsMatrix *subscriptionsMatrix) in
 	//Error check
 	if lengthError != nil {
 		fmt.Println("ERROR: Error while reading message's content length: " + lengthError.Error())
-		connection.Write([]byte("length read error"))
+		_, err := connection.Write(createMessage(3, 0, []byte("length read error")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to client: " + err.Error())
+		}
 		return 2
 	}
 	//Leer el nombre del archivo
@@ -138,7 +183,10 @@ func processFileSharing(connection net.Conn, subsMatrix *subscriptionsMatrix) in
 	//Error check
 	if filenameError != nil {
 		fmt.Println("ERROR: Error while reading file name: " + filenameError.Error())
-		connection.Write([]byte("filename read error"))
+		_, err := connection.Write(createMessage(3, 0, []byte("filename read error")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to client: " + err.Error())
+		}
 		return 2
 	}
 	//Parsear el canal recibido
@@ -147,7 +195,10 @@ func processFileSharing(connection net.Conn, subsMatrix *subscriptionsMatrix) in
 	//Comprobar que el canal recibido sea válido
 	if channel < 1 || channel > NUMBER_OF_CHANNELS {
 		fmt.Println("ERROR: The client's message specified an invalid channel")
-		connection.Write([]byte("invalid channel"))
+		_, err := connection.Write(createMessage(3, 0, []byte("invalid channel")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to client: " + err.Error())
+		}
 		return 3
 	}
 	//Parsear la longitud del contenido
@@ -156,7 +207,10 @@ func processFileSharing(connection net.Conn, subsMatrix *subscriptionsMatrix) in
 	//Comprobar que la longitud sea válida
 	if contentLength <= FILENAME_MAX_LENGTH {
 		fmt.Println("ERROR: The client's message specified an invalid content length")
-		connection.Write([]byte("invalid content length"))
+		_, err := connection.Write(createMessage(3, 0, []byte("invalid content length")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to client: " + err.Error())
+		}
 		return 3
 	}
 	//Parsear el nombre del archivo
@@ -164,7 +218,10 @@ func processFileSharing(connection net.Conn, subsMatrix *subscriptionsMatrix) in
 	//Comprobar que el nombre del archivo no esté vacío
 	if len(filename) == 0 {
 		fmt.Println("ERROR: The client's message specified an empty file name")
-		connection.Write([]byte("empty filename"))
+		_, err := connection.Write(createMessage(3, 0, []byte("empty filename")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to client: " + err.Error())
+		}
 		return 3
 	}
 	//Leer el resto del mensaje (contenido del archivo)
@@ -173,18 +230,28 @@ func processFileSharing(connection net.Conn, subsMatrix *subscriptionsMatrix) in
 	//Error check
 	if fileError != nil {
 		fmt.Println("ERROR: Error while reading file content: " + fileError.Error())
-		connection.Write([]byte("file read error"))
+		_, err := connection.Write(createMessage(3, 0, []byte("file read error")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to client: " + err.Error())
+		}
 		return 2
 	}
 	if int64(n) != contentLength-FILENAME_MAX_LENGTH {
 		fmt.Printf("ERROR: Could not read file content completely (expected: %d, real: %d)\n", contentLength-FILENAME_MAX_LENGTH, n)
-		connection.Write([]byte("file incomplete read"))
+		_, err := connection.Write(createMessage(3, 0, []byte("file incomplete read")))
+		if err != nil {
+			fmt.Println("ERROR: Error while sending response to client: " + err.Error())
+		}
 		return 2
 	}
 	//El archivo se ha leído y se tiene en un buffer
 	fmt.Printf("File received from client (%v, %d bytes)\n", filename, contentLength-FILENAME_MAX_LENGTH)
 	//Comunicar que se recibió el archivo al cliente que lo envió
-	connection.Write([]byte("received"))
+	_, err := connection.Write(createMessage(2, channel, []byte("received")))
+	if err != nil {
+		fmt.Println("ERROR: Error while sending response to client: " + err.Error())
+		return 2
+	}
 	//El archivo se enviará a los clientes suscritos al canal. Primero se armará el mensaje (longitud, filename, file)
 	var message []byte
 	message = append(message, lengthBuffer...)
@@ -226,21 +293,36 @@ func sendFileToClient(message []byte, clientAddress string) {
 		return
 	}
 	//Esperar una respuesta del cliente
-	var responseBuffer []byte = make([]byte, BUFFER_SIZE)
-	var response string
-	n, responseError := connection.Read(responseBuffer)
+	var headerBuffer []byte = make([]byte, 10)
+	var command int8
+	var contentLength int64
+	_, headerError := connection.Read(headerBuffer)
 	//Error check
-	if responseError != nil {
-		fmt.Println("ERROR: Error while receiving client's response: " + responseError.Error())
+	if headerError != nil {
+		fmt.Println("ERROR: Error while receiving client's response header: " + headerError.Error())
 		return
 	}
-	//Parsear respuesta
-	response = string(responseBuffer[:n])
+	//Parsear header
+	command = int8(headerBuffer[0])
+	contentLength = int64(binary.LittleEndian.Uint64(headerBuffer[2:]))
+	//Leer contenido del mensaje
+	var contentBuffer []byte = make([]byte, contentLength)
+	var content string
+	_, contentError := connection.Read(contentBuffer)
+	//Error check
+	if contentError != nil {
+		fmt.Println("ERROR: Error while receiving client's response content: " + contentError.Error())
+		return
+	}
+	//Parsear contenido del mensaje
+	content = string(contentBuffer)
 	//Interpretar respuesta
-	switch response {
-	case "received":
+	switch command {
+	case 2:
 		fmt.Println("Sent file to client", clientAddress, "successfully")
+	case 3:
+		fmt.Println("ERROR: Client error (" + content + ")")
 	default:
-		fmt.Println("ERROR: Client error (" + response + ")")
+		fmt.Println("ERROR: Invalid command received from client:", command)
 	}
 }

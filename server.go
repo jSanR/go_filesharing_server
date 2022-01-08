@@ -10,7 +10,6 @@ import (
 
 //Constantes
 const NUMBER_OF_CHANNELS = 8          //Cantidad de canales disponibles para que un cliente se suscriba
-const BUFFER_SIZE = 1024              //Tamaño de buffer para recibir bytes del cliente en mensajes grandes
 const LISTENER_PORT = "7101"          //Puerto sobre el que recibirá mensajes el servidor
 const FILENAME_MAX_LENGTH = 40        //Tamaño máximo del nombre de un archivo que se recibe
 const SEND_FILES_CONCURRENTLY = false //Determina si un archivo recibido se envía a los clientes de un canal de manera concurrente o secuencial
@@ -33,7 +32,7 @@ func main() {
 	listener, listenerError = net.Listen("tcp", "127.0.0.1:"+LISTENER_PORT)
 	//Error check
 	if listenerError != nil {
-		fmt.Println("ERROR: Error while starting server" + listenerError.Error())
+		fmt.Println("ERROR: Error while starting server: " + listenerError.Error())
 		return
 	}
 
