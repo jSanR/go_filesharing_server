@@ -5,7 +5,7 @@ package main
 import "encoding/binary"
 
 //Función que crea un mensaje con la estructura estándar del protocolo
-func createMessage(command int8, channel int8, body []byte) []byte {
+func createSimpleMessage(command int8, channel int8, body []byte) []byte {
 	//Variables para el mensaje y cada una de sus partes
 	var message []byte
 	//Convertir el comando y añadirlo al mensaje
