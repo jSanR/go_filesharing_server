@@ -272,6 +272,7 @@ func processFileSharing(connection net.Conn, subsMatrix *subscriptionsMatrix) in
 	return 0
 }
 
+//Función para el envío de un archivo a un cliente suscrito
 func sendFileToClient(message []byte, clientAddress string) {
 	//Conectarse con el cliente en cuestión (que en teoría debería tener un listener en la dirección recibida)
 	var connection net.Conn
