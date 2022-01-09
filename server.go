@@ -18,14 +18,14 @@ const SEND_FILES_CONCURRENTLY = false //Determina si un archivo recibido se env�
 func main() {
 	//Verificar argumentos
 	if len(os.Args) != 2 || os.Args[1] != "start" {
-		fmt.Println("File sharing server: Allow clients to send and receive files through channel subscriptions\n")
+		fmt.Print("File sharing server: Allow clients to send and receive files through channel subscriptions\n\n")
 		fmt.Println("Usage:")
 		fmt.Println("server start")
 		os.Exit(0)
 	}
 
-	//Incicializar matriz que contendrá a los clientes conectados a cada canal
-	var subsMatrix *subscriptionsMatrix = new(subscriptionsMatrix)
+	//Inicializar matriz que contendrá a los clientes conectados a cada canal
+	var subsMatrix *subscriptionMatrix = newSubscriptionMatrix()
 
 	//Iniciar servidor en localhost y el puerto específico
 	var listener net.Listener
