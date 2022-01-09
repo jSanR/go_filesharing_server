@@ -5,6 +5,7 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"strconv"
 	"strings"
@@ -154,6 +155,7 @@ func processFileSharing(connection net.Conn, subsMatrix *subscriptionsMatrix) in
 	var lengthBuffer []byte = make([]byte, 8)                     //Buffer que recibe la longitud del contenido (nombre y contenido de archivo)
 	var filenameBuffer []byte = make([]byte, FILENAME_MAX_LENGTH) //Buffer que recibe el nombre del archivo
 	var fileBuffer []byte                                         //Buffer que recibe el contenido del archivo
+	var tempBUffer []byte                                         //Buffer que va leyendo el contenido del archivo en partes
 	//Cerrar la conexión al terminar
 	defer connection.Close()
 	//Leer el canal seleccionado por el cliente
@@ -225,19 +227,32 @@ func processFileSharing(connection net.Conn, subsMatrix *subscriptionsMatrix) in
 		return 3
 	}
 	//Leer el resto del mensaje (contenido del archivo)
-	fileBuffer = make([]byte, contentLength-FILENAME_MAX_LENGTH)
-	n, fileError := connection.Read(fileBuffer)
-	//Error check
-	if fileError != nil {
-		fmt.Println("ERROR: Error while reading file content: " + fileError.Error())
-		_, err := connection.Write(createSimpleMessage(3, 0, []byte("file read error")))
-		if err != nil {
-			fmt.Println("ERROR: Error while sending response to client: " + err.Error())
+	fileBuffer = make([]byte, 0) //Este buffer empieza vacío, pues se le irá concatenando el contenido del temporal
+	tempBUffer = make([]byte, BUFFER_SIZE)
+	var readLength int64 = 0
+	//Lectura por partes para evitar problemas con archivos grandes
+	for {
+		//Leer al buffer temporal
+		n, fileError := connection.Read(fileBuffer)
+		//Error check
+		if fileError == io.EOF { //Se concluyó la lectura
+			break
+		} else if fileError != nil { //Hubo un error de otro tipo
+			fmt.Println("ERROR: Error while reading file content: " + fileError.Error())
+			_, err := connection.Write(createSimpleMessage(3, 0, []byte("file read error")))
+			if err != nil {
+				fmt.Println("ERROR: Error while sending response to client: " + err.Error())
+			}
+			return 2
 		}
-		return 2
+		//Añadir lo leído al buffer del archivo
+		fileBuffer = append(fileBuffer, tempBUffer[:n]...)
+		//Actualizar la longitud leída
+		readLength += int64(n)
 	}
-	if int64(n) != contentLength-FILENAME_MAX_LENGTH {
-		fmt.Printf("ERROR: Could not read file content completely (expected: %d, real: %d)\n", contentLength-FILENAME_MAX_LENGTH, n)
+
+	if readLength != contentLength-FILENAME_MAX_LENGTH {
+		fmt.Printf("ERROR: Could not read file content completely (expected: %d, real: %d)\n", contentLength-FILENAME_MAX_LENGTH, readLength)
 		_, err := connection.Write(createSimpleMessage(3, 0, []byte("file incomplete read")))
 		if err != nil {
 			fmt.Println("ERROR: Error while sending response to client: " + err.Error())

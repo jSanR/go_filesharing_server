@@ -10,6 +10,7 @@ import (
 
 //Constantes
 const NUMBER_OF_CHANNELS = 8          //Cantidad de canales disponibles para que un cliente se suscriba
+const BUFFER_SIZE = 1024              //Tamaño de buffer temporal para recibir contenidos de mensaje largos (archivos)
 const LISTENER_PORT = "7101"          //Puerto sobre el que recibirá mensajes el servidor
 const FILENAME_MAX_LENGTH = 40        //Tamaño máximo del nombre de un archivo que se recibe
 const SEND_FILES_CONCURRENTLY = false //Determina si un archivo recibido se envía a los clientes de un canal de manera concurrente o secuencial
