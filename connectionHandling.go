@@ -249,6 +249,10 @@ func processFileSharing(connection net.Conn, subsMatrix *subscriptionsMatrix) in
 		fileBuffer = append(fileBuffer, tempBuffer[:n]...)
 		//Actualizar la longitud leída
 		readLength += int64(n)
+		//Si ya se leyó el archivo completamente, se sale del bucle
+		if readLength == contentLength-FILENAME_MAX_LENGTH {
+			break
+		}
 	}
 
 	if readLength != contentLength-FILENAME_MAX_LENGTH {
