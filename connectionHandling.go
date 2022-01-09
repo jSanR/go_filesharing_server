@@ -233,7 +233,7 @@ func processFileSharing(connection net.Conn, subsMatrix *subscriptionsMatrix) in
 	//Lectura por partes para evitar problemas con archivos grandes
 	for {
 		//Leer al buffer temporal
-		n, fileError := connection.Read(fileBuffer)
+		n, fileError := connection.Read(tempBUffer)
 		//Error check
 		if fileError == io.EOF { //Se concluyó la lectura
 			break
